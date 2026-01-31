@@ -1,0 +1,35 @@
+name: 'Milestone Creator'
+description: 'Creates milestones when a release is created from a semantic version tag'
+author: 'OctoberSwimmer'
+
+inputs:
+  github-token:
+    description: 'GitHub token for API access'
+    required: true
+  upcoming-milestones:
+    description: 'Number of upcoming milestones to create'
+    required: false
+    default: '1'
+  version-increment:
+    description: 'Which version part to increment for upcoming milestones (major, minor, patch)'
+    required: false
+    default: 'minor'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.23'
+        cache: false
+
+    - name: Build and run milestone creator
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        INPUT_UPCOMING_MILESTONES: ${{ inputs.upcoming-milestones }}
+        INPUT_VERSION_INCREMENT: ${{ inputs.version-increment }}
+      run: |
+        cd ${{ github.action_path }}
+        go run ./cmd/actions
