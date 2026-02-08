@@ -4,10 +4,10 @@ A GitHub Action that automatically creates milestones when a release is created 
 
 ## Features
 
-- Creates a milestone matching the release tag version
+- Closes the milestone matching the release tag version (creates it if it doesn't exist)
 - Creates upcoming milestones with incremented versions
 - Supports `v` prefix (e.g., `v1.2.3`) or plain versions (e.g., `1.2.3`)
-- Skips milestone creation if they already exist
+- Skips upcoming milestone creation if they already exist
 
 ## Usage
 
@@ -39,7 +39,7 @@ jobs:
 
 ### Create 3 upcoming milestones with minor version increment
 
-When release `v1.0.0` is created, this creates milestones: `v1.0.0`, `v1.1.0`, `v1.2.0`, `v1.3.0`
+When release `v1.0.0` is created, this closes milestone `v1.0.0` and creates milestones: `v1.1.0`, `v1.2.0`, `v1.3.0`
 
 ```yaml
 - uses: octoberswimmer/milestone-creator@v1
@@ -50,7 +50,7 @@ When release `v1.0.0` is created, this creates milestones: `v1.0.0`, `v1.1.0`, `
 
 ### Use patch version increment
 
-When release `v1.0.0` is created, this creates milestones: `v1.0.0`, `v1.0.1`
+When release `v1.0.0` is created, this closes milestone `v1.0.0` and creates milestone `v1.0.1`
 
 ```yaml
 - uses: octoberswimmer/milestone-creator@v1
@@ -61,7 +61,7 @@ When release `v1.0.0` is created, this creates milestones: `v1.0.0`, `v1.0.1`
 
 ### Use major version increment
 
-When release `v1.0.0` is created, this creates milestones: `v1.0.0`, `v2.0.0`
+When release `v1.0.0` is created, this closes milestone `v1.0.0` and creates milestone `v2.0.0`
 
 ```yaml
 - uses: octoberswimmer/milestone-creator@v1

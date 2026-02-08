@@ -1,7 +1,13 @@
 package main
 
 import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
+
+	"github.com/google/go-github/v68/github"
 )
 
 func TestParseSemVer(t *testing.T) {
@@ -182,6 +188,74 @@ func TestParseRepo(t *testing.T) {
 				}
 				if name != tt.wantName {
 					t.Errorf("parseRepo() name = %v, want %v", name, tt.wantName)
+				}
+			}
+		})
+	}
+}
+
+func TestListMilestones(t *testing.T) {
+	tests := []struct {
+		name       string
+		milestones []*github.Milestone
+		want       map[string]MilestoneInfo
+	}{
+		{
+			name:       "returns empty map when no milestones exist",
+			milestones: []*github.Milestone{},
+			want:       map[string]MilestoneInfo{},
+		},
+		{
+			name: "returns milestone info with number and state",
+			milestones: []*github.Milestone{
+				{Title: github.Ptr("v1.0.0"), Number: github.Ptr(1), State: github.Ptr("open")},
+				{Title: github.Ptr("v1.1.0"), Number: github.Ptr(2), State: github.Ptr("closed")},
+			},
+			want: map[string]MilestoneInfo{
+				"v1.0.0": {Number: 1, State: "open"},
+				"v1.1.0": {Number: 2, State: "closed"},
+			},
+		},
+		{
+			name: "handles milestones without v prefix",
+			milestones: []*github.Milestone{
+				{Title: github.Ptr("1.0.0"), Number: github.Ptr(1), State: github.Ptr("open")},
+			},
+			want: map[string]MilestoneInfo{
+				"1.0.0": {Number: 1, State: "open"},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				json.NewEncoder(w).Encode(tt.milestones)
+			}))
+			defer server.Close()
+
+			client := github.NewClient(nil)
+			client.BaseURL, _ = client.BaseURL.Parse(server.URL + "/")
+
+			got, err := listMilestones(context.Background(), client, "owner", "repo")
+			if err != nil {
+				t.Errorf("listMilestones() error = %v", err)
+				return
+			}
+
+			if len(got) != len(tt.want) {
+				t.Errorf("listMilestones() returned %d milestones, want %d", len(got), len(tt.want))
+				return
+			}
+
+			for title, wantInfo := range tt.want {
+				gotInfo, exists := got[title]
+				if !exists {
+					t.Errorf("listMilestones() missing milestone %s", title)
+					continue
+				}
+				if gotInfo != wantInfo {
+					t.Errorf("listMilestones()[%s] = %v, want %v", title, gotInfo, wantInfo)
 				}
 			}
 		})

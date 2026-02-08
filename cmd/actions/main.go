@@ -133,15 +133,35 @@ func run() error {
 		return fmt.Errorf("failed to list milestones: %w", err)
 	}
 
-	milestonesToCreate := []string{version.String()}
+	currentVersionTitle := version.String()
+	if info, exists := existingMilestones[currentVersionTitle]; exists {
+		if info.State != "closed" {
+			_, _, err := client.Issues.EditMilestone(ctx, owner, repoName, info.Number, &github.Milestone{
+				State: github.Ptr("closed"),
+			})
+			if err != nil {
+				return fmt.Errorf("failed to close milestone %s: %w", currentVersionTitle, err)
+			}
+			fmt.Printf("Closed milestone %s\n", currentVersionTitle)
+		} else {
+			fmt.Printf("Milestone %s already closed\n", currentVersionTitle)
+		}
+	} else {
+		_, _, err := client.Issues.CreateMilestone(ctx, owner, repoName, &github.Milestone{
+			Title: github.Ptr(currentVersionTitle),
+			State: github.Ptr("closed"),
+		})
+		if err != nil {
+			return fmt.Errorf("failed to create milestone %s: %w", currentVersionTitle, err)
+		}
+		fmt.Printf("Created and closed milestone %s\n", currentVersionTitle)
+	}
+
 	nextVersion := version
 	for i := 0; i < upcoming; i++ {
 		nextVersion = nextVersion.Increment(increment)
-		milestonesToCreate = append(milestonesToCreate, nextVersion.String())
-	}
-
-	for _, title := range milestonesToCreate {
-		if existingMilestones[title] {
+		title := nextVersion.String()
+		if _, exists := existingMilestones[title]; exists {
 			fmt.Printf("Milestone %s already exists\n", title)
 			continue
 		}
@@ -167,8 +187,13 @@ func parseRepo(repo string) (owner, name string, err error) {
 	return "", "", fmt.Errorf("invalid repository format: %s", repo)
 }
 
-func listMilestones(ctx context.Context, client *github.Client, owner, repo string) (map[string]bool, error) {
-	milestones := make(map[string]bool)
+type MilestoneInfo struct {
+	Number int
+	State  string
+}
+
+func listMilestones(ctx context.Context, client *github.Client, owner, repo string) (map[string]MilestoneInfo, error) {
+	milestones := make(map[string]MilestoneInfo)
 
 	opts := &github.MilestoneListOptions{
 		State:       "all",
@@ -182,7 +207,10 @@ func listMilestones(ctx context.Context, client *github.Client, owner, repo stri
 		}
 
 		for _, m := range ms {
-			milestones[m.GetTitle()] = true
+			milestones[m.GetTitle()] = MilestoneInfo{
+				Number: m.GetNumber(),
+				State:  m.GetState(),
+			}
 		}
 
 		if resp.NextPage == 0 {
