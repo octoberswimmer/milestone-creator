@@ -18,14 +18,19 @@ type ReleaseEvent struct {
 }
 
 type SemVer struct {
-	Major  int
-	Minor  int
-	Patch  int
-	Prefix string
+	Major      int
+	Minor      int
+	Patch      int
+	Prefix     string
+	PreRelease string
 }
 
 func (v SemVer) String() string {
-	return fmt.Sprintf("%s%d.%d.%d", v.Prefix, v.Major, v.Minor, v.Patch)
+	s := fmt.Sprintf("%s%d.%d.%d", v.Prefix, v.Major, v.Minor, v.Patch)
+	if v.PreRelease != "" {
+		s += "-" + v.PreRelease
+	}
+	return s
 }
 
 func (v SemVer) Increment(part string) SemVer {
@@ -39,7 +44,20 @@ func (v SemVer) Increment(part string) SemVer {
 	}
 }
 
-var semverRegex = regexp.MustCompile(`^(v?)(\d+)\.(\d+)\.(\d+)$`)
+var preReleaseTrailingNumber = regexp.MustCompile(`^(.*?)(\d+)$`)
+
+func (v SemVer) IncrementPreRelease() SemVer {
+	next := SemVer{Prefix: v.Prefix, Major: v.Major, Minor: v.Minor, Patch: v.Patch}
+	if matches := preReleaseTrailingNumber.FindStringSubmatch(v.PreRelease); matches != nil {
+		n, _ := strconv.Atoi(matches[2])
+		next.PreRelease = fmt.Sprintf("%s%d", matches[1], n+1)
+		return next
+	}
+	next.PreRelease = v.PreRelease + ".1"
+	return next
+}
+
+var semverRegex = regexp.MustCompile(`^(v?)(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?$`)
 
 func ParseSemVer(tag string) (SemVer, error) {
 	matches := semverRegex.FindStringSubmatch(tag)
@@ -52,10 +70,11 @@ func ParseSemVer(tag string) (SemVer, error) {
 	patch, _ := strconv.Atoi(matches[4])
 
 	return SemVer{
-		Prefix: matches[1],
-		Major:  major,
-		Minor:  minor,
-		Patch:  patch,
+		Prefix:     matches[1],
+		Major:      major,
+		Minor:      minor,
+		Patch:      patch,
+		PreRelease: matches[5],
 	}, nil
 }
 
@@ -159,7 +178,11 @@ func run() error {
 
 	nextVersion := version
 	for i := 0; i < upcoming; i++ {
-		nextVersion = nextVersion.Increment(increment)
+		if version.PreRelease != "" {
+			nextVersion = nextVersion.IncrementPreRelease()
+		} else {
+			nextVersion = nextVersion.Increment(increment)
+		}
 		title := nextVersion.String()
 		if _, exists := existingMilestones[title]; exists {
 			fmt.Printf("Milestone %s already exists\n", title)

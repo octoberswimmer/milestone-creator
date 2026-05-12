@@ -38,13 +38,23 @@ func TestParseSemVer(t *testing.T) {
 			want: SemVer{Prefix: "v", Major: 10, Minor: 20, Patch: 30},
 		},
 		{
-			name:    "rejects invalid format",
-			tag:     "not-a-version",
-			wantErr: true,
+			name: "parses version with prerelease label",
+			tag:  "v1.2.3-beta",
+			want: SemVer{Prefix: "v", Major: 1, Minor: 2, Patch: 3, PreRelease: "beta"},
 		},
 		{
-			name:    "rejects version with prerelease",
-			tag:     "v1.2.3-beta",
+			name: "parses version with numbered prerelease",
+			tag:  "v1.0.0-beta.2",
+			want: SemVer{Prefix: "v", Major: 1, Minor: 0, Patch: 0, PreRelease: "beta.2"},
+		},
+		{
+			name: "parses version with rc prerelease",
+			tag:  "1.2.3-rc.10",
+			want: SemVer{Prefix: "", Major: 1, Minor: 2, Patch: 3, PreRelease: "rc.10"},
+		},
+		{
+			name:    "rejects invalid format",
+			tag:     "not-a-version",
 			wantErr: true,
 		},
 		{
@@ -89,12 +99,54 @@ func TestSemVer_String(t *testing.T) {
 			semver: SemVer{Prefix: "", Major: 1, Minor: 2, Patch: 3},
 			want:   "1.2.3",
 		},
+		{
+			name:   "appends prerelease identifier with hyphen",
+			semver: SemVer{Prefix: "v", Major: 1, Minor: 0, Patch: 0, PreRelease: "beta.2"},
+			want:   "v1.0.0-beta.2",
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := tt.semver.String(); got != tt.want {
 				t.Errorf("SemVer.String() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestSemVer_IncrementPreRelease(t *testing.T) {
+	tests := []struct {
+		name   string
+		semver SemVer
+		want   SemVer
+	}{
+		{
+			name:   "increments trailing dotted number",
+			semver: SemVer{Prefix: "v", Major: 1, Minor: 0, Patch: 0, PreRelease: "beta.2"},
+			want:   SemVer{Prefix: "v", Major: 1, Minor: 0, Patch: 0, PreRelease: "beta.3"},
+		},
+		{
+			name:   "increments trailing number without separator",
+			semver: SemVer{Prefix: "v", Major: 1, Minor: 0, Patch: 0, PreRelease: "alpha9"},
+			want:   SemVer{Prefix: "v", Major: 1, Minor: 0, Patch: 0, PreRelease: "alpha10"},
+		},
+		{
+			name:   "appends .1 when prerelease has no trailing number",
+			semver: SemVer{Prefix: "v", Major: 1, Minor: 0, Patch: 0, PreRelease: "beta"},
+			want:   SemVer{Prefix: "v", Major: 1, Minor: 0, Patch: 0, PreRelease: "beta.1"},
+		},
+		{
+			name:   "leaves base version untouched",
+			semver: SemVer{Prefix: "", Major: 2, Minor: 5, Patch: 1, PreRelease: "rc.4"},
+			want:   SemVer{Prefix: "", Major: 2, Minor: 5, Patch: 1, PreRelease: "rc.5"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.semver.IncrementPreRelease(); got != tt.want {
+				t.Errorf("SemVer.IncrementPreRelease() = %v, want %v", got, tt.want)
 			}
 		})
 	}
